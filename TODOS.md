@@ -33,37 +33,6 @@ users still do.
 
 ---
 
-### P3: shutdown() reads module-level `config`, not `cfg.config` (composition gap)
-
-**What:** `browse/src/server.ts:shutdown()` reads `path.dirname(config.stateFile)`
-where `config` is the module-level value resolved at import time, not the
-`cfg.config` passed into `buildFetchHandler`. Same gap applies to
-`cleanSingletonLocks(resolveChromiumProfile())` at server.ts:1298 — should
-read `cfg.chromiumProfile`.
-
-**Why:** Embedders today happen to share state-dir resolution with the CLI
-(both go through `resolveConfig()` against the same env), so this doesn't
-bite. But if an embedder ever passes a divergent `cfg.config` (e.g., a test
-harness pointing at a temp dir), shutdown will operate on the wrong paths.
-The `ownsTerminalAgent` flag exposes the problem without fixing it.
-
-**Pros:** Closes the embedder-composition story properly. Pairs with
-`cfg.chromiumProfile` to give a single coherent "this factory teardown
-respects cfg" contract.
-
-**Cons:** Pre-existing — not a regression. Two call sites today (1285 for
-terminal files, 1298 for chromium locks). Threading `cfg.config` and
-`cfg.chromiumProfile` into the right closures is straightforward but
-broader than the v1.41 fix.
-
-**Context:** Flagged by both Codex and Claude subagent in the /plan-eng-review
-dual voices. Documented as out-of-scope in the v1.41 plan; same shape as the
-`chromiumProfile` PR-body note to the gbrowser team.
-
-**Depends on:** None.
-
----
-
 ### P3: Ownership-object refactor if a 4th caller-owned teardown gate appears
 
 **What:** Today `ServerConfig` has three caller-owned teardown gates:
