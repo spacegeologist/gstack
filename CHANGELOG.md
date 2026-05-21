@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.43.4.0] - 2026-05-21
+
+## **The browse server factory now tears down the state dir its caller actually passed in, not a guessed one.**
+## **Embedders that point `buildFetchHandler` at a custom directory get correct shutdown, and the test suite stops touching your live daemon's files.**
+
+One browse-side correctness fix lands as a PATCH on top of v1.43.3.0, closing the embedder-composition story the v1.42 `ownsTerminalAgent` flag opened. The `buildFetchHandler` factory's `shutdown()` resolved its cleanup paths from the module-level `config` captured at import time instead of the `cfg.config` the caller handed in. For gstack's own CLI this was invisible: the CLI and the module resolve the same paths from the same env. But any embedder that builds the factory against a divergent `cfg.config` (the gbrowser phoenix overlay, a test harness pointing at a temp dir) would, on shutdown, delete `terminal-port`, `terminal-internal-token`, and the state file from the wrong directory and clean Chromium singleton locks from the wrong profile. Shutdown now reads `cfg.config.stateFile` and `resolveChromiumProfile(cfg.chromiumProfile)`, so the factory teardown respects the config it was built with.
+
+### The numbers that matter
+
+Source: `bun test browse/test/server-embedder-terminal-port.test.ts` — 5 tests, all green. A new regression test builds the factory against a temp state dir and proves a sibling session's `terminal-port` / `terminal-internal-token` survive while the caller's own dir is cleaned. Reverting the fix turns 3 of the 5 red, so the gap can't creep back unnoticed.
+
+| Surface | Before | After |
+|---|---|---|
+| Embedder with divergent `cfg.config` | shutdown deletes `terminal-port` / `terminal-internal-token` / state file from the **module-level** dir | cleaned from `cfg.config.stateFile`'s dir — the one the caller passed |
+| Embedder with custom `cfg.chromiumProfile` | singleton-lock cleanup ran against the env/default profile, ignoring `cfg.chromiumProfile` | runs against `resolveChromiumProfile(cfg.chromiumProfile)` |
+| gstack CLI shutdown | correct (CLI and module resolve the same paths) | identical — no behavior change |
+| `server-embedder-terminal-port.test.ts` | backed up + restored your **real** daemon's files to avoid clobbering a live session | per-test temp dirs — the suite never touches a real state dir |
+
+### What this means for builders
+
+If you embed gstack's browse server via `buildFetchHandler` and pass your own `cfg.config` or `cfg.chromiumProfile`, shutdown now operates on your paths instead of gstack's defaults. If you only use the gstack CLI, nothing changes for you. And if you run the browse test suite while a real browse daemon is live, it no longer reads or rewrites that daemon's terminal discovery files. Pull and your embedder's teardown is correctly scoped.
+
+### Itemized changes
+
+#### Fixed
+
+- `browse/src/server.ts` — the factory `shutdown()` now reads `cfg.config.stateFile` (for the `terminal-port` / `terminal-internal-token` unlinks and the state-file unlink) and `resolveChromiumProfile(cfg.chromiumProfile)` (for `cleanSingletonLocks`) instead of the module-level `config` resolved at import time. Embedders that pass a divergent `cfg.config` / `cfg.chromiumProfile` now get teardown scoped to the directories they own. The CLI path is unchanged (it resolves the same paths either way).
+
+#### For contributors
+
+- `browse/test/server-embedder-terminal-port.test.ts` — tests now point the factory at a per-test temp state dir (`mkdtempSync`) instead of the real resolved state dir, removing the `beforeAll`/`afterAll` backup-and-restore dance that previously read and rewrote a live daemon's `terminal-port` / `terminal-internal-token`. Added a regression test asserting shutdown cleans the caller's `cfg.config` dir while leaving a sibling session's state dir untouched.
+
 ## [1.43.3.0] - 2026-05-21
 
 ## **Headed Chromium embedded by external supervisors stops auto-shutting-down after 30 minutes of HTTP idle.**
