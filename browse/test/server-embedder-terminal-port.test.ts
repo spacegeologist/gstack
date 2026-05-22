@@ -141,7 +141,7 @@ describe('buildFetchHandler ownsTerminalAgent gate', () => {
 
   test('3. ownsTerminalAgent unset defaults to true (deletes + pkill)', async () => {
     writeSentinels();
-    // Note: no ownsTerminalAgent in the overrides — uses the `?? true` default.
+    // Note: no ownsTerminalAgent in the overrides — only explicit false opts out.
     const handle = buildFetchHandler(makeMinimalConfig());
     const calls = await withStubs(async () => {
       await runShutdown(handle);
@@ -177,7 +177,30 @@ describe('buildFetchHandler ownsTerminalAgent gate', () => {
     }
   });
 
-  test('5. CLI start() call site passes ownsTerminalAgent: true literally (static grep)', () => {
+  test('5. shutdown targets cfg.chromiumProfile singleton locks', async () => {
+    const profileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-profile-root-'));
+    const chromiumProfile = path.join(profileRoot, 'chromium-profile');
+    fs.mkdirSync(chromiumProfile, { recursive: true });
+    for (const lockName of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
+      fs.writeFileSync(path.join(chromiumProfile, lockName), 'stale-lock');
+    }
+    try {
+      const handle = buildFetchHandler(makeMinimalConfig({
+        chromiumProfile,
+        ownsTerminalAgent: false,
+      }));
+      await withStubs(async () => {
+        await runShutdown(handle);
+      });
+      for (const lockName of ['SingletonLock', 'SingletonSocket', 'SingletonCookie']) {
+        expect(readIfExists(path.join(chromiumProfile, lockName))).toBeNull();
+      }
+    } finally {
+      fs.rmSync(profileRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('6. CLI start() call site passes ownsTerminalAgent: true literally (static grep)', () => {
     // Resolves browse/src/server.ts relative to this test file so the test
     // works regardless of cwd. import.meta.url is the test file's URL.
     const serverTsPath = path.resolve(

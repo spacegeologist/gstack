@@ -9,7 +9,7 @@ One browse-side correctness fix lands as a PATCH on top of v1.43.3.0, closing th
 
 ### The numbers that matter
 
-Source: `bun test browse/test/server-embedder-terminal-port.test.ts` — 5 tests, all green. A new regression test builds the factory against a temp state dir and proves a sibling session's `terminal-port` / `terminal-internal-token` survive while the caller's own dir is cleaned. Reverting the fix turns 3 of the 5 red, so the gap can't creep back unnoticed.
+Source: `bun test browse/test/server-embedder-terminal-port.test.ts` — 6 tests, all green. New regression tests build the factory against a temp state dir and a caller-provided Chromium profile: a sibling session's `terminal-port` / `terminal-internal-token` survive while the caller's own dir is cleaned, and stale singleton locks are removed from `cfg.chromiumProfile`. Reverting the fix turns 4 of the 6 red, so the gap can't creep back unnoticed.
 
 | Surface | Before | After |
 |---|---|---|
@@ -30,7 +30,7 @@ If you embed gstack's browse server via `buildFetchHandler` and pass your own `c
 
 #### For contributors
 
-- `browse/test/server-embedder-terminal-port.test.ts` — tests now point the factory at a per-test temp state dir (`mkdtempSync`) instead of the real resolved state dir, removing the `beforeAll`/`afterAll` backup-and-restore dance that previously read and rewrote a live daemon's `terminal-port` / `terminal-internal-token`. Added a regression test asserting shutdown cleans the caller's `cfg.config` dir while leaving a sibling session's state dir untouched.
+- `browse/test/server-embedder-terminal-port.test.ts` — tests now point the factory at a per-test temp state dir (`mkdtempSync`) instead of the real resolved state dir, removing the `beforeAll`/`afterAll` backup-and-restore dance that previously read and rewrote a live daemon's `terminal-port` / `terminal-internal-token`. Added regression tests asserting shutdown cleans the caller's `cfg.config` dir while leaving a sibling session's state dir untouched, and cleans Chromium singleton locks from the caller's `cfg.chromiumProfile`.
 
 ## [1.43.3.0] - 2026-05-21
 
