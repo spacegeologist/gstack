@@ -34,7 +34,7 @@ function buildHostPaths(): Record<string, HostPaths> {
         makePdfDir: '$GSTACK_MAKE_PDF',
       };
     } else {
-      const root = `~/${config.globalRoot}`;
+      const root = `$HOME/${config.globalRoot}`;
       paths[config.name] = {
         skillRoot: root,
         localSkillRoot: config.localSkillRoot,

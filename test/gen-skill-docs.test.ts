@@ -272,6 +272,21 @@ describe('gen-skill-docs', () => {
     expect(content).toContain('RECOMMENDATION');
   });
 
+  test('generated helper command paths do not quote literal tilde', () => {
+    const offenders: string[] = [];
+    for (const skill of CLAUDE_GENERATED_SKILLS) {
+      const mdPath = path.join(ROOT, skill.dir, 'SKILL.md');
+      const lines = fs.readFileSync(mdPath, 'utf-8').split('\n');
+      lines.forEach((line, index) => {
+        if (line.includes('"~/.claude/skills/gstack/bin/')) {
+          offenders.push(`${path.relative(ROOT, mdPath)}:${index + 1}: ${line.trim()}`);
+        }
+      });
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   test('generated SKILL.md contains branch detection', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('_BRANCH');
